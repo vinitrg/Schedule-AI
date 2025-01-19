@@ -99,10 +99,6 @@ def main():
                 for text_chunk in chat_client.generate_response_stream(
                     prompt,
                     max_tokens=1000,
-                    temperature=st.session_state.parameters["temperature"],
-                    top_p=st.session_state.parameters["top_p"],
-                    frequency_penalty=st.session_state.parameters["frequency_penalty"],
-                    presence_penalty=st.session_state.parameters["presence_penalty"],
                 ):
                     full_response += text_chunk
                     # Update response in real-time
