@@ -142,7 +142,7 @@ if __name__ == "__main__":
         }
         </style>
         <div class="footer">
-            By: <a href="https://nas.io/curious-pm" target="_blank">https://nas.io/curious-pm</a>
+            By: <a href="https://www.linkedin.com/in/vinit-gujarathi/" target="_blank">Vinit Gujarathi</a>
         </div>
         """,
         unsafe_allow_html=True,
