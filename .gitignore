@@ -1,3 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.env
 .streamlit/secrets.toml
 
 # Byte-compiled / optimized / DLL files
