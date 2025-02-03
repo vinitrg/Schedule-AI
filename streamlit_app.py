@@ -3,6 +3,8 @@ import requests
 import json
 import time
 from typing import Dict, Any, Iterator
+import pandas as pd
+import io
 
 class AzureOpenAIChat:
     def __init__(self):
@@ -65,13 +67,61 @@ class AzureOpenAIChat:
             raise RuntimeError(f"Unexpected error: {str(e)}")
 
 
+def process_excel_file(file):
+    try:
+        df = pd.read_excel(file)
+        st.session_state.uploaded_data = df
+        with st.chat_message("assistant"):
+            st.success(f"Excel file processed successfully! Found {len(df)} rows and {len(df.columns)} columns.")
+            st.dataframe(df.head(), use_container_width=True)
+        
+        # Add system message to chat history about the file upload
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": f"Excel file processed successfully!\nColumns: {', '.join(df.columns)}\nNumber of rows: {len(df)}"
+        })
+    except Exception as e:
+        st.error(f"Error reading the file: {str(e)}")
+
+
 def main():
     st.set_page_config(page_title="OpenAI Playground", page_icon="💬")
     st.title("OpenAI Playground")
 
-    # Initialize chat history in session state
+    # Initialize session state variables
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    if "uploaded_data" not in st.session_state:
+        st.session_state.uploaded_data = None
+
+    # Add main interface file upload
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        main_file_upload = st.file_uploader("Upload Excel File (Main)", type=['xlsx', 'xls'])
+    with col2:
+        if main_file_upload:
+            if st.button("Process File"):
+                process_excel_file(main_file_upload)
+
+    # Display data preview if available
+    if st.session_state.uploaded_data is not None:
+        st.subheader("Current Data Preview")
+        st.dataframe(st.session_state.uploaded_data.head())
+
+    # Add file uploader in the sidebar
+    with st.sidebar:
+        st.header("Data Import")
+        uploaded_file = st.file_uploader("Upload Excel File", type=['xlsx', 'xls'])
+        
+        if uploaded_file is not None:
+            process_excel_file(uploaded_file)
+            
+            if st.session_state.uploaded_data is not None:
+                # Display basic information about the dataset
+                st.subheader("Dataset Info")
+                st.write(f"Number of rows: {len(st.session_state.uploaded_data)}")
+                st.write(f"Number of columns: {len(st.session_state.uploaded_data.columns)}")
+                st.write("Columns:", ", ".join(st.session_state.uploaded_data.columns))
 
     # Display chat history
     for message in st.session_state.messages:
@@ -96,8 +146,20 @@ def main():
             full_response = ""
 
             try:
+                # If there's uploaded data, include it in the context
+                context = ""
+                if st.session_state.uploaded_data is not None:
+                    df = st.session_state.uploaded_data
+                    context = f"\nContext from uploaded Excel file:\n"
+                    context += f"- File contains {len(df)} rows and {len(df.columns)} columns\n"
+                    context += f"- Columns: {', '.join(df.columns)}\n"
+                    context += f"- First few rows:\n{df.head().to_string()}\n\n"
+                
+                # Combine context with user prompt
+                full_prompt = context + prompt if context else prompt
+
                 for text_chunk in chat_client.generate_response_stream(
-                    prompt,
+                    full_prompt,
                     max_tokens=1000,
                 ):
                     full_response += text_chunk
@@ -120,7 +182,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-     # Footer with text and link
+    # Footer with text and link
     st.markdown(
         """
         <style>
