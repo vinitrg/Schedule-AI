@@ -17,7 +17,7 @@ class AzureOpenAIChat:
     def generate_response_stream(
         self,
         query: str,
-        max_tokens: int = 1000,
+        #max_tokens: int = 1000,
         temperature: float = 0.7,
         top_p: float = 1.0,
         frequency_penalty: float = 0.0,
@@ -29,20 +29,30 @@ class AzureOpenAIChat:
             "Content-Type": "application/json",
             "api-key": self.API_KEY,
         }
-
+        systemPrompt = "Attached is a sheet from a project management software used in the construction industry. WBS1, WBS2, WBS3, WBS4, WBS5, WBS6, WBS7, WBS8, WBS9 represent the hierarchy followed by the software, a row is deemed as an activity when the row has non empty Status value and a non empty Activity Id. Based on the queries, you are required to respond with the activity name." 
+        systemPrompt += "Whenever a query is made, you must always provide the activity name in your response.  Start Date: The date when the activity started or is scheduled to start."
+        systemPrompt += "End Date: The date when the activity ended or is expected to end."
+        systemPrompt += "Progress: The percentage of overall progress for the activity."
+        systemPrompt += "Duration: The remaining number of days required to complete the activity."
+        systemPrompt += "Activity Id: Represents the code of activity."
+        systemPrompt += "Status: Current state of the activity."
         data = {
             "messages": [
-                {"role": "system", "content": processedExcel},  # Excel data as system context
+                {"role": "system", "content": systemPrompt},  # Excel data as system context
                 {"role": "user", "content": query}  # User query
                 ],
-            "max_tokens": max_tokens,
             "temperature": temperature,
             "top_p": top_p,
             "frequency_penalty": frequency_penalty,
             "presence_penalty": presence_penalty,
             "stream": True  # Enable streaming
         }
-
+        # st.write("Messages being sent to API:")
+        # for msg in data["messages"]:
+        #     st.write(f"Role: {msg['role']}")
+        #     st.write("Content:")
+        #     st.text(msg['content'][:1000] + "..." if len(msg['content']) > 1000 else msg['content'])
+        #     st.write("---")
         try:
             response = requests.post(
                 self.API_ENDPOINT,
@@ -85,7 +95,7 @@ def process_excel_file(file):
         # Add system message to chat history about the file upload
         st.session_state.messages.append({
             "role": "assistant",
-            "content": f"Excel file processed successfully!\nColumns: {', '.join(df.columns)}\nNumber of rows: {len(processedExcel)}"
+            "content": f"Excel file processed successfully!\nColumns: {', '.join(df.columns)}\nNumber of rows: {len(df)}"
         })
         
         return processedExcel  # Return the string representation
@@ -132,8 +142,8 @@ def main():
         uploaded_file = st.file_uploader("Upload Excel File", type=['xlsx', 'xls'])
         
         if uploaded_file is not None:
-            excel_string = process_excel_file(uploaded_file)  # Capture the return value
-            st.session_state.processed_excel = excel_string  # Store in session state
+            processedExcel = process_excel_file(uploaded_file)  # Capture the return value
+            st.session_state.processed_excel = processedExcel  # Store in session state
             
             if st.session_state.uploaded_data is not None:
                 # Display basic information about the dataset
@@ -165,17 +175,24 @@ def main():
             full_response = ""
 
             try:
-                excel_string = ""
+                # If there's uploaded data, include it in the context
+                context = ""
                 if st.session_state.uploaded_data is not None:
-                    excel_string = st.session_state.uploaded_data.to_string()
+                    df = st.session_state.uploaded_data
+                    context = f"\nContext from uploaded Excel file:\n"
+                    context += f"- File contains {len(df)} rows and {len(df.columns)} columns\n"
+                    context += f"- Columns: {', '.join(df.columns)}\n"
+                    context += f"- First few rows:\n{df.head().to_string()}\n\n"
+                
+                # Combine context with user prompt
+                full_prompt = context + prompt if context else prompt
 
-            # Generate response using the chat client
                 for text_chunk in chat_client.generate_response_stream(
-                query=prompt,
-                processedExcel=excel_string,  # Pass the Excel string here
-                max_tokens=1000,
+                    full_prompt,
+                    #max_tokens=1000,
                 ):
                     full_response += text_chunk
+                    # Update response in real-time
                     response_placeholder.markdown(full_response + "▌")
 
                 # Final update without cursor
@@ -186,7 +203,6 @@ def main():
                     "role": "assistant",
                     "content": full_response,
                 })
-
             except RuntimeError as err:
                 st.error(f"Error generating response: {err}")
                 response_placeholder.markdown("Sorry, I couldn't generate a response.")
